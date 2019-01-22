@@ -63,6 +63,7 @@ smallvec = { version = "0.6.9", default-features = false, optional = true }
 
 # Auto Splitting
 livesplit-auto-splitting = { path = "crates/livesplit-auto-splitting", version = "0.1.0", optional = true }
+crossbeam-channel = { version = "0.3.6", default-features = false, optional = true }
 
 [dev-dependencies]
 memmem = "0.1.1"
@@ -75,7 +76,7 @@ more-image-formats = ["image/webp", "image/pnm", "image/ico", "image/jpeg", "ima
 image-shrinking = ["more-image-formats"]
 rendering = ["more-image-formats", "euclid", "livesplit-title-abbreviations", "rusttype", "lyon", "smallvec"]
 software-rendering = ["rendering", "euc", "vek"]
-auto-splitting = ["livesplit-auto-splitting"]
+auto-splitting = ["livesplit-auto-splitting", "crossbeam-channel"]
 
 [[bench]]
 name = "balanced_pb"
