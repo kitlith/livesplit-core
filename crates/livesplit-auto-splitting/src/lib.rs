@@ -1,4 +1,4 @@
-mod environment;
+// mod environment;
 mod pointer;
 mod process;
 mod runtime;
