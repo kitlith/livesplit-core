@@ -7,6 +7,8 @@ use std::{error::Error, mem, str, thread, time::Duration};
 // };
 use wasmer_runtime::{func, imports, memory::MemoryView, Ctx, Func, Instance};
 
+mod wasi;
+
 pub struct Runtime {
     instance: Instance,
     environment: Environment,
@@ -52,6 +54,7 @@ pub struct Environment {
     pub pointer_paths: Vec<PointerPath>,
     pub tick_rate: Duration,
     pub process: Option<Process>,
+    pub fs: wasi::FileSystem,
 }
 
 #[derive(Debug)]
@@ -70,6 +73,7 @@ impl Environment {
             pointer_paths: Vec::new(),
             tick_rate: Duration::from_secs(1) / 60,
             process: None,
+            fs: wasi::FileSystem::new(),
         }
     }
 }
@@ -96,14 +100,36 @@ impl Runtime {
                 "print_message" => func!(print_message),
                 "read_into_buf" => func!(read_into_buf),
             },
+            "wasi_unstable" => {
+                "args_get" => func!(wasi::args_get),
+                "args_sizes_get" => func!(wasi::args_sizes_get),
+                "clock_time_get" => func!(wasi::clock_time_get),
+                "environ_get" => func!(wasi::environ_get),
+                "environ_sizes_get" => func!(wasi::environ_sizes_get),
+                "fd_close" => func!(wasi::fd_close),
+                "fd_fdstat_get" => func!(wasi::fd_fdstat_get),
+                "fd_filestat_get" => func!(wasi::fd_filestat_get),
+                "fd_prestat_dir_name" => func!(wasi::fd_prestat_dir_name),
+                "fd_prestat_get" => func!(wasi::fd_prestat_get),
+                "fd_read" => func!(wasi::fd_read),
+                "fd_seek" => func!(wasi::fd_seek),
+                "fd_write" => func!(wasi::fd_write),
+                "path_open" => func!(wasi::path_open),
+                "proc_exit" => func!(wasi::proc_exit),
+                "random_get" => func!(wasi::random_get),
+            },
         };
         let mut instance = wasmer_runtime::instantiate(binary, &import_object).unwrap();
 
         let mut environment = Environment::new();
         instance.context_mut().data = &mut environment as *mut Environment as *mut _;
+        if let Ok(func) = instance.func::<(), ()>("_start") {
+            func.call()
+                .map_err(|e| format!("Failed to run _start function: {}", e))?;
+        }
         instance
             .call("configure", &[])
-            .map_err(|_| "Failed to run configure function")?;
+            .map_err(|e| format!("Failed to run configure function: {}", e))?;
 
         // let should_start = instance
         //     .export_by_name("should_start")
