@@ -4,6 +4,7 @@ use winapi::um::{
     handleapi::{CloseHandle, INVALID_HANDLE_VALUE},
     memoryapi::{ReadProcessMemory, VirtualQueryEx},
     processthreadsapi::{GetProcessTimes, OpenProcess},
+    psapi::GetModuleFileNameExW,
     tlhelp32::{
         CreateToolhelp32Snapshot, Module32FirstW, Module32NextW, Process32FirstW, Process32NextW,
         MODULEENTRY32W, PROCESSENTRY32W, TH32CS_SNAPMODULE, TH32CS_SNAPPROCESS,
@@ -17,7 +18,8 @@ use winapi::um::{
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
-use std::{mem, result, slice};
+use std::path::PathBuf;
+use std::{mem, ptr, result, slice};
 
 type Address = u64;
 pub type Offset = i64;
@@ -54,6 +56,22 @@ impl Drop for Process {
 impl Process {
     pub fn is_64bit(&self) -> bool {
         self.is_64bit
+    }
+
+    pub fn path(&self) -> Option<PathBuf> {
+        let mut path_buf = [0u16; 1024];
+        if unsafe {
+            GetModuleFileNameExW(
+                self.handle,
+                ptr::null_mut(),
+                path_buf.as_mut_ptr() as *mut _,
+                path_buf.len() as _,
+            )
+        } == 0
+        {
+            return None;
+        }
+        Some(PathBuf::from(OsString::from_wide(&path_buf)))
     }
 
     pub fn with_name(name: &str) -> Result<Self> {
