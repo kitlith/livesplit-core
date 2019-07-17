@@ -497,7 +497,7 @@ fn scan_signature(ctx: &mut Ctx, ptr: u32, len: u32) -> u64 {
     if let Some(process) = &env.process {
         let signature = read_string(&memory, ptr, len);
         let address = process.scan_signature(&signature).unwrap();
-        return address.unwrap_or(0);
+        return address.unwrap_or(0) as u64;
     }
 
     0
@@ -519,7 +519,7 @@ fn read_into_buf(ctx: &mut Ctx, address: u64, buf: u32, buf_len: u32) {
     let buf = &memory[buf..buf + buf_len];
     if let Some(process) = &env.process {
         let mut byte_buf = vec![0; buf.len()];
-        process.read_buf(address, &mut byte_buf).unwrap();
+        process.read_buf(address as usize, &mut byte_buf).unwrap();
         for (dst, src) in buf.iter().zip(byte_buf) {
             dst.set(src);
         }
