@@ -516,7 +516,7 @@ fn scan_signature(ctx: &mut Ctx, ptr: u32, len: u32) -> u64 {
     if let Some(process) = &env.process {
         let signature = read_string(&memory, ptr, len);
         let address = process.scan_signature(&signature).unwrap();
-        return address.unwrap_or(0);
+        return address.unwrap_or(0) as u64;
     }
 
     0
