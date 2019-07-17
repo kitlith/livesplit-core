@@ -17,6 +17,7 @@ use quick_error::quick_error;
 
 use proc_maps::{get_process_maps, MapRange, Pid};
 use read_process_memory::{CopyAddress, TryIntoProcessHandle, ProcessHandle};
+use sysinfo::{ProcessExt, SystemExt};
 
 use std::collections::HashMap;
 use std::ffi::OsString;
@@ -50,87 +51,29 @@ pub struct Process {
 
 impl Process {
     pub fn path(&self) -> Option<PathBuf> {
-        // let mut path_buf = [0u16; 1024];
-        // if unsafe {
-        //     GetModuleFileNameExW(
-        //         self.handle,
-        //         ptr::null_mut(),
-        //         path_buf.as_mut_ptr() as *mut _,
-        //         path_buf.len() as _,
-        //     )
-        // } == 0
-        // {
-        //     return None;
-        // }
-        // Some(PathBuf::from(OsString::from_wide(&path_buf)))
-        unimplemented!()
+        let mut system = sysinfo::System::new();
+        system.refresh_process(self.pid);
+        system.get_process_list().get(&0).map(|proc| proc.exe().to_path_buf())
     }
 
     pub fn with_name(name: &str) -> Result<Self> {
-        // unsafe {
-        //     let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-        //
-        //     if snapshot == INVALID_HANDLE_VALUE {
-        //         return Err(Error::ListProcesses);
-        //     }
-        //
-        //     let mut creation_time = mem::uninitialized();
-        //     let mut exit_time = mem::uninitialized();
-        //     let mut kernel_time = mem::uninitialized();
-        //     let mut user_time = mem::uninitialized();
-        //
-        //     let mut best_process = None::<(DWORD, u64)>;
-        //     let mut entry: PROCESSENTRY32W = mem::uninitialized();
-        //     entry.dwSize = mem::size_of_val(&entry) as _;
-        //
-        //     if Process32FirstW(snapshot, &mut entry) != 0 {
-        //         loop {
-        //             {
-        //                 let entry_name = &entry.szExeFile;
-        //                 let len = entry_name.iter().take_while(|&&c| c != 0).count();
-        //                 let entry_name = &entry_name[..len];
-        //                 let entry_name = &OsString::from_wide(entry_name);
-        //                 if entry_name == name {
-        //                     let pid = entry.th32ProcessID;
-        //                     let process = OpenProcess(PROCESS_QUERY_INFORMATION, false as _, pid);
-        //
-        //                     if !process.is_null() {
-        //                         let success = GetProcessTimes(
-        //                             process,
-        //                             &mut creation_time,
-        //                             &mut exit_time,
-        //                             &mut kernel_time,
-        //                             &mut user_time,
-        //                         );
-        //                         if success != 0 {
-        //                             let time = (creation_time.dwHighDateTime as u64) << 32
-        //                                 | (creation_time.dwLowDateTime as u64);
-        //
-        //                             if best_process.map_or(true, |(_, oldest)| time > oldest) {
-        //                                 best_process = Some((pid, time));
-        //                             }
-        //                         }
-        //
-        //                         CloseHandle(process);
-        //                     }
-        //                 }
-        //             }
-        //
-        //             if Process32NextW(snapshot, &mut entry) == 0 {
-        //                 break;
-        //             }
-        //         }
-        //     }
-        //
-        //     CloseHandle(snapshot);
-        //
-        //     if let Some((pid, _)) = best_process {
-        //         Process::with_pid(pid)
-        //     } else {
-        //         Err(Error::ProcessDoesntExist)
-        //     }
-        // }
-        unimplemented!()
+        let mut system = sysinfo::System::new();
+        system.refresh_processes();
+
+        let mut best_process = None::<(Pid, u64)>;
+        for (pid, proc) in system.get_process_list() {
+            if proc.name() == name {
+                if best_process.map_or(true, |(_, current)| proc.start_time() > current) {
+                    best_process = Some((proc.pid(), proc.start_time()));
+                }
+            }
+        }
+
+        if let Some((pid, _)) = best_process {
+            Self::with_pid(pid)
+        } else {
+            Err(Error::ProcessDoesntExist)
+        }
     }
 
     pub fn with_pid(pid: Pid) -> Result<Self> {
