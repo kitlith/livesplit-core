@@ -1,6 +1,6 @@
-use quick_error::quick_error;
 use proc_maps::{get_process_maps, MapRange, Pid};
-use read_process_memory::{CopyAddress, TryIntoProcessHandle, ProcessHandle};
+use quick_error::quick_error;
+use read_process_memory::{CopyAddress, ProcessHandle, TryIntoProcessHandle};
 use sysinfo::{ProcessExt, SystemExt};
 
 use std::collections::HashMap;
@@ -29,14 +29,17 @@ pub type Result<T> = result::Result<T, Error>;
 pub struct Process {
     pid: Pid,
     handle: ProcessHandle,
-    modules: HashMap<String, Address>
+    modules: HashMap<String, Address>,
 }
 
 impl Process {
     pub fn path(&self) -> Option<PathBuf> {
         let mut system = sysinfo::System::new();
         system.refresh_process(self.pid);
-        system.get_process_list().get(&0).map(|proc| proc.exe().to_path_buf())
+        system
+            .get_process_list()
+            .get(&0)
+            .map(|proc| proc.exe().to_path_buf())
     }
 
     pub fn with_name(name: &str) -> Result<Self> {
@@ -60,17 +63,20 @@ impl Process {
     }
 
     pub fn with_pid(pid: Pid) -> Result<Self> {
-        let modules: HashMap<_,_> = get_process_maps(pid).or(Err(Error::ProcessDoesntExist))?
-            .into_iter().filter(|range| range.filename().is_some()).map(|range| {
-                (range.filename().clone().unwrap(), range.start())
-            }).collect();
-        let handle = (pid as read_process_memory::Pid).try_into_process_handle()
+        let modules: HashMap<_, _> = get_process_maps(pid)
+            .or(Err(Error::ProcessDoesntExist))?
+            .into_iter()
+            .filter(|range| range.filename().is_some())
+            .map(|range| (range.filename().clone().unwrap(), range.start()))
+            .collect();
+        let handle = (pid as read_process_memory::Pid)
+            .try_into_process_handle()
             .or(Err(Error::ProcessDoesntExist))?;
 
         Ok(Self {
             pid,
             handle,
-            modules
+            modules,
         })
     }
 
@@ -82,7 +88,9 @@ impl Process {
     }
 
     pub fn read_buf(&self, address: Address, buf: &mut [u8]) -> Result<()> {
-        self.handle.copy_address(address, buf).or(Err(Error::ReadMemory))
+        self.handle
+            .copy_address(address, buf)
+            .or(Err(Error::ReadMemory))
     }
 
     pub fn read<T: Copy>(&self, address: Address) -> Result<T> {
@@ -95,8 +103,10 @@ impl Process {
     }
 
     fn memory_pages(&self, all: bool) -> Result<impl Iterator<Item = MapRange> + '_> {
-        Ok(get_process_maps(self.pid).or(Err(Error::ProcessDoesntExist))?
-            .into_iter().filter(move |range| all || range.is_read()))
+        Ok(get_process_maps(self.pid)
+            .or(Err(Error::ProcessDoesntExist))?
+            .into_iter()
+            .filter(move |range| all || range.is_read()))
     }
 
     pub fn scan_signature(&self, signature: &str) -> Result<Option<Address>> {
