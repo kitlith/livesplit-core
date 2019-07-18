@@ -1,27 +1,10 @@
 use quick_error::quick_error;
-// use winapi::shared::minwindef::{BOOL, DWORD};
-// use winapi::um::{
-//     handleapi::{CloseHandle, INVALID_HANDLE_VALUE},
-//     memoryapi::{ReadProcessMemory, VirtualQueryEx},
-//     processthreadsapi::{GetProcessTimes, OpenProcess},
-//     psapi::GetModuleFileNameExW,
-//     tlhelp32::{
-//         CreateToolhelp32Snapshot, Module32FirstW, Module32NextW, Process32FirstW, Process32NextW,
-//         MODULEENTRY32W, PROCESSENTRY32W, TH32CS_SNAPMODULE, TH32CS_SNAPPROCESS,
-//     },
-//     winnt::{
-//         HANDLE, MEMORY_BASIC_INFORMATION, MEM_COMMIT, PAGE_GUARD, PAGE_NOACCESS,
-//         PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
-//     },
-// };
-
 use proc_maps::{get_process_maps, MapRange, Pid};
 use read_process_memory::{CopyAddress, TryIntoProcessHandle, ProcessHandle};
 use sysinfo::{ProcessExt, SystemExt};
 
 use std::collections::HashMap;
 use std::ffi::OsString;
-// use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::{mem, ptr, result, slice};
 
@@ -77,11 +60,12 @@ impl Process {
     }
 
     pub fn with_pid(pid: Pid) -> Result<Self> {
-        let modules: HashMap<_,_> = get_process_maps(pid).map_err(|e| Error::ProcessDoesntExist)?
+        let modules: HashMap<_,_> = get_process_maps(pid).or(Err(Error::ProcessDoesntExist))?
             .into_iter().filter(|range| range.filename().is_some()).map(|range| {
                 (range.filename().clone().unwrap(), range.start())
             }).collect();
-        let handle = (pid as read_process_memory::Pid).try_into_process_handle().map_err(|e| Error::ProcessDoesntExist)?;
+        let handle = (pid as read_process_memory::Pid).try_into_process_handle()
+            .or(Err(Error::ProcessDoesntExist))?;
 
         Ok(Self {
             pid,
@@ -98,7 +82,7 @@ impl Process {
     }
 
     pub fn read_buf(&self, address: Address, buf: &mut [u8]) -> Result<()> {
-        self.handle.copy_address(address, buf).map_err(|_| Error::ReadMemory)
+        self.handle.copy_address(address, buf).or(Err(Error::ReadMemory))
     }
 
     pub fn read<T: Copy>(&self, address: Address) -> Result<T> {
@@ -111,7 +95,7 @@ impl Process {
     }
 
     fn memory_pages(&self, all: bool) -> Result<impl Iterator<Item = MapRange> + '_> {
-        Ok(get_process_maps(self.pid).map_err(|e| Error::ProcessDoesntExist)?
+        Ok(get_process_maps(self.pid).or(Err(Error::ProcessDoesntExist))?
             .into_iter().filter(move |range| all || range.is_read()))
     }
 
