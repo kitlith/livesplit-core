@@ -247,7 +247,7 @@ impl Runtime {
             }
             TimerState::Running => {
                 if let Ok(func) = self.instance.func::<(), i32>("is_loading") {
-                    let ret_val = func.call().map_err(|e| format!("Failed to run is_loading function: {}", e));
+                    let ret_val = func.call().map_err(|e| format!("Failed to run is_loading function: {}", e))?;
 
                     self.is_loading_val = Some(ret_val != 0);
                 }
