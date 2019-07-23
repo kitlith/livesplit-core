@@ -13,13 +13,6 @@ pub struct Runtime {
     instance: Instance,
     environment: Environment,
     timer_state: TimerState,
-    // should_start: Option<FuncRef>,
-    // should_split: Option<FuncRef>,
-    // should_reset: Option<FuncRef>,
-    // is_loading: Option<FuncRef>,
-    // game_time: Option<FuncRef>,
-    // update: Option<FuncRef>,
-    // disconnected: Option<FuncRef>,
     is_loading_val: Option<bool>,
     game_time_val: Option<f64>,
 }
@@ -131,39 +124,10 @@ impl Runtime {
             .call("configure", &[])
             .map_err(|e| format!("Failed to run configure function: {}", e))?;
 
-        // let should_start = instance
-        //     .export_by_name("should_start")
-        //     .and_then(|e| e.as_func()?.clone().into());
-        // let should_split = instance
-        //     .export_by_name("should_split")
-        //     .and_then(|e| e.as_func()?.clone().into());
-        // let should_reset = instance
-        //     .export_by_name("should_reset")
-        //     .and_then(|e| e.as_func()?.clone().into());
-        // let is_loading = instance
-        //     .export_by_name("is_loading")
-        //     .and_then(|e| e.as_func()?.clone().into());
-        // let game_time = instance
-        //     .export_by_name("game_time")
-        //     .and_then(|e| e.as_func()?.clone().into());
-        // let update = instance
-        //     .export_by_name("update")
-        //     .and_then(|e| e.as_func()?.clone().into());
-        // let disconnected = instance
-        //     .export_by_name("disconnected")
-        //     .and_then(|e| e.as_func()?.clone().into());
-
         Ok(Self {
             instance,
             environment,
             timer_state: TimerState::NotRunning,
-            // should_start,
-            // should_split,
-            // should_reset,
-            // is_loading,
-            // game_time,
-            // update,
-            // disconnected,
             is_loading_val: None,
             game_time_val: None,
         })
@@ -188,9 +152,9 @@ impl Runtime {
             // TODO: Only checks for disconnected if we actually have pointer paths
             log::info!(target: "Auto Splitter", "Unhooked");
             self.environment.process = None;
-            // if let Some(func) = &self.disconnected {
-            //     FuncInstance::invoke(func, &[], &mut self.environment)?;
-            // }
+            if let Ok(func) = self.instance.func::<(), ()>("disconnected") {
+                func.call().map_err(|e| format!("Failed to run disconnected function: {}", e));
+            }
             return Ok(None);
         }
         // println!("{:#?}", self.environment);
@@ -202,58 +166,60 @@ impl Runtime {
     }
 
     fn update_values(&mut self, just_connected: bool) -> Result<(), Box<Error>> {
-        // let process = self
-        //     .environment
-        //     .process
-        //     .as_mut()
-        //     .expect("The process should be connected at this point");
+        let process = self
+            .environment
+            .process
+            .as_mut()
+            .expect("The process should be connected at this point");
 
-        // for pointer_path in &mut self.environment.pointer_paths {
-        //     let mut address = if !pointer_path.module_name.is_empty() {
-        //         process.module_address(&pointer_path.module_name)?
-        //     } else {
-        //         0
-        //     };
-        //     let mut offsets = pointer_path.offsets.iter().cloned().peekable();
-        //     if process.is_64bit() {
-        //         while let Some(offset) = offsets.next() {
-        //             address = (address as Offset).wrapping_add(offset) as u64;
-        //             if offsets.peek().is_some() {
-        //                 address = process.read(address)?;
-        //             }
-        //         }
-        //     } else {
-        //         while let Some(offset) = offsets.next() {
-        //             address = (address as i32).wrapping_add(offset as i32) as u64;
-        //             if offsets.peek().is_some() {
-        //                 address = process.read::<u32>(address)? as u64;
-        //             }
-        //         }
-        //     }
-        //     match &mut pointer_path.old {
-        //         PointerValue::U8(v) => *v = process.read(address)?,
-        //         PointerValue::U16(v) => *v = process.read(address)?,
-        //         PointerValue::U32(v) => *v = process.read(address)?,
-        //         PointerValue::U64(v) => *v = process.read(address)?,
-        //         PointerValue::I8(v) => *v = process.read(address)?,
-        //         PointerValue::I16(v) => *v = process.read(address)?,
-        //         PointerValue::I32(v) => *v = process.read(address)?,
-        //         PointerValue::I64(v) => *v = process.read(address)?,
-        //         PointerValue::F32(v) => *v = process.read(address)?,
-        //         PointerValue::F64(v) => *v = process.read(address)?,
-        //         PointerValue::String(_) => unimplemented!(),
-        //     }
-        // }
+        let modules = process.modules()?;
 
-        // if just_connected {
-        //     for pointer_path in &mut self.environment.pointer_paths {
-        //         pointer_path.current.clone_from(&pointer_path.old);
-        //     }
-        // } else {
-        //     for pointer_path in &mut self.environment.pointer_paths {
-        //         mem::swap(&mut pointer_path.current, &mut pointer_path.old);
-        //     }
-        // }
+        for pointer_path in &mut self.environment.pointer_paths {
+            let mut address: usize = if !pointer_path.module_name.is_empty() {
+                *modules.get(&pointer_path.module_name).ok_or(crate::process::Error::ModuleDoesntExist)?
+            } else {
+                0
+            };
+            let mut offsets = pointer_path.offsets.iter().cloned().peekable();
+            // if process.is_64bit() {
+                while let Some(offset) = offsets.next() {
+                    address = (address as Offset).wrapping_add(offset as isize) as usize;
+                    if offsets.peek().is_some() {
+                        address = process.read(address)?;
+                    }
+                }
+            // } else {
+            //     while let Some(offset) = offsets.next() {
+            //         address = (address as i32).wrapping_add(offset as i32) as u64;
+            //         if offsets.peek().is_some() {
+            //             address = process.read::<u32>(address)? as u64;
+            //         }
+            //     }
+            // }
+            match &mut pointer_path.old {
+                PointerValue::U8(v) => *v = process.read(address)?,
+                PointerValue::U16(v) => *v = process.read(address)?,
+                PointerValue::U32(v) => *v = process.read(address)?,
+                PointerValue::U64(v) => *v = process.read(address)?,
+                PointerValue::I8(v) => *v = process.read(address)?,
+                PointerValue::I16(v) => *v = process.read(address)?,
+                PointerValue::I32(v) => *v = process.read(address)?,
+                PointerValue::I64(v) => *v = process.read(address)?,
+                PointerValue::F32(v) => *v = process.read(address)?,
+                PointerValue::F64(v) => *v = process.read(address)?,
+                PointerValue::String(_) => unimplemented!(),
+            }
+        }
+
+        if just_connected {
+            for pointer_path in &mut self.environment.pointer_paths {
+                pointer_path.current.clone_from(&pointer_path.old);
+            }
+        } else {
+            for pointer_path in &mut self.environment.pointer_paths {
+                mem::swap(&mut pointer_path.current, &mut pointer_path.old);
+            }
+        }
 
         Ok(())
     }
@@ -263,13 +229,13 @@ impl Runtime {
 
         if let Ok(func) = self.instance.func::<(), ()>("update") {
             // TODO: Don't panic
-            func.call().unwrap();
+            func.call().map_err(|e| format!("Failed to run update function: {}", e))?;
         }
 
         match &self.timer_state {
             TimerState::NotRunning => {
                 if let Ok(func) = self.instance.func::<(), i32>("should_start") {
-                    let ret_val = func.call().unwrap();
+                    let ret_val = func.call().map_err(|e| format!("Failed to run should_start function: {}", e))?;
 
                     if ret_val != 0 {
                         return Ok(Some(TimerAction::Start));
@@ -278,12 +244,12 @@ impl Runtime {
             }
             TimerState::Running => {
                 if let Ok(func) = self.instance.func::<(), i32>("is_loading") {
-                    let ret_val = func.call().unwrap();
+                    let ret_val = func.call().map_err(|e| format!("Failed to run is_loading function: {}", e));
 
                     self.is_loading_val = Some(ret_val != 0);
                 }
                 if let Ok(func) = self.instance.func::<(), f64>("game_time") {
-                    let ret_val = func.call().unwrap();
+                    let ret_val = func.call().map_err(|e| format!("Failed to run game_time function: {}", e))?;
 
                     self.game_time_val = if ret_val.is_nan() {
                         None
@@ -293,14 +259,14 @@ impl Runtime {
                 }
 
                 if let Ok(func) = self.instance.func::<(), i32>("should_split") {
-                    let ret_val = func.call().unwrap();
+                    let ret_val = func.call().map_err(|e| format!("Failed to run should_split function: {}", e))?;
 
                     if ret_val != 0 {
                         return Ok(Some(TimerAction::Split));
                     }
                 }
                 if let Ok(func) = self.instance.func::<(), i32>("should_reset") {
-                    let ret_val = func.call().unwrap();
+                    let ret_val = func.call().map_err(|e| format!("Failed to run should_reset function: {}", e))?;
 
                     if ret_val != 0 {
                         return Ok(Some(TimerAction::Reset));
@@ -309,7 +275,7 @@ impl Runtime {
             }
             TimerState::Finished => {
                 if let Ok(func) = self.instance.func::<(), i32>("should_reset") {
-                    let ret_val = func.call().unwrap();
+                    let ret_val = func.call().map_err(|e| format!("Failed to run should_reset function: {}", e))?;
 
                     if ret_val != 0 {
                         return Ok(Some(TimerAction::Reset));

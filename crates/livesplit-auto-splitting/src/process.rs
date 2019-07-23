@@ -5,7 +5,7 @@ use sysinfo::{ProcessExt, SystemExt};
 
 use std::collections::HashMap;
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::{mem, ptr, result, slice};
 
 type Address = usize;
@@ -29,7 +29,6 @@ pub type Result<T> = result::Result<T, Error>;
 pub struct Process {
     pid: Pid,
     handle: ProcessHandle,
-    modules: HashMap<String, Address>,
 }
 
 impl Process {
@@ -63,12 +62,6 @@ impl Process {
     }
 
     pub fn with_pid(pid: Pid) -> Result<Self> {
-        let modules: HashMap<_, _> = get_process_maps(pid)
-            .or(Err(Error::ProcessDoesntExist))?
-            .into_iter()
-            .filter(|range| range.filename().is_some())
-            .map(|range| (range.filename().clone().unwrap(), range.start()))
-            .collect();
         let handle = (pid as read_process_memory::Pid)
             .try_into_process_handle()
             .or(Err(Error::ProcessDoesntExist))?;
@@ -76,15 +69,16 @@ impl Process {
         Ok(Self {
             pid,
             handle,
-            modules,
         })
     }
 
-    pub fn module_address(&self, module: &str) -> Result<Address> {
-        self.modules
-            .get(module)
-            .cloned()
-            .ok_or(Error::ModuleDoesntExist)
+    pub fn modules(&self) -> Result<HashMap<String, Address>> {
+        Ok(get_process_maps(self.pid)
+            .or(Err(Error::ProcessDoesntExist))?
+            .into_iter()
+            .filter(|range| range.filename().is_some())
+            .map(|range| (AsRef::<Path>::as_ref(&range.filename().as_ref().unwrap()).file_name().unwrap().to_str().unwrap().to_string(), range.start()))
+            .collect())
     }
 
     pub fn read_buf(&self, address: Address, buf: &mut [u8]) -> Result<()> {
