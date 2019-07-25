@@ -6,8 +6,9 @@ use std::{error::Error, mem, str, thread, time::Duration};
 //     ExternVal, FuncInstance, FuncRef, MemoryRef, Module, ModuleInstance, ModuleRef, RuntimeValue,
 // };
 use wasmer_runtime::{func, imports, memory::MemoryView, Ctx, Func, Instance};
+use wasmer_wasi::generate_import_object;
 
-mod wasi;
+// mod wasi;
 
 pub struct Runtime {
     instance: Instance,
@@ -47,7 +48,7 @@ pub struct Environment {
     pub pointer_paths: Vec<PointerPath>,
     pub tick_rate: Duration,
     pub process: Option<Process>,
-    pub fs: wasi::FileSystem,
+    //pub fs: wasi::FileSystem,
 }
 
 #[derive(Debug)]
@@ -66,14 +67,15 @@ impl Environment {
             pointer_paths: Vec::new(),
             tick_rate: Duration::from_secs(1) / 60,
             process: None,
-            fs: wasi::FileSystem::new(),
+            //fs: wasi::FileSystem::new(),
         }
     }
 }
 
 impl Runtime {
     pub fn new(binary: &[u8]) -> Result<Self, Box<Error>> {
-        let import_object = imports! {
+        let mut imports = generate_import_object(vec![], vec![], vec![], vec![]);
+        imports.extend(imports! {
             "env" => {
                 "set_process_name" => func!(set_process_name),
                 "push_pointer_path" => func!(push_pointer_path),
@@ -93,26 +95,8 @@ impl Runtime {
                 "print_message" => func!(print_message),
                 "read_into_buf" => func!(read_into_buf),
             },
-            "wasi_unstable" => {
-                "args_get" => func!(wasi::args_get),
-                "args_sizes_get" => func!(wasi::args_sizes_get),
-                "clock_time_get" => func!(wasi::clock_time_get),
-                "environ_get" => func!(wasi::environ_get),
-                "environ_sizes_get" => func!(wasi::environ_sizes_get),
-                "fd_close" => func!(wasi::fd_close),
-                "fd_fdstat_get" => func!(wasi::fd_fdstat_get),
-                "fd_filestat_get" => func!(wasi::fd_filestat_get),
-                "fd_prestat_dir_name" => func!(wasi::fd_prestat_dir_name),
-                "fd_prestat_get" => func!(wasi::fd_prestat_get),
-                "fd_read" => func!(wasi::fd_read),
-                "fd_seek" => func!(wasi::fd_seek),
-                "fd_write" => func!(wasi::fd_write),
-                "path_open" => func!(wasi::path_open),
-                "proc_exit" => func!(wasi::proc_exit),
-                "random_get" => func!(wasi::random_get),
-            },
-        };
-        let mut instance = wasmer_runtime::instantiate(binary, &import_object).unwrap();
+        });
+        let mut instance = wasmer_runtime::instantiate(binary, &imports).unwrap();
 
         let mut environment = Environment::new();
         instance.context_mut().data = &mut environment as *mut Environment as *mut _;
@@ -368,7 +352,7 @@ fn push_offset(ctx: &mut Ctx, pointer_path_id: u32, offset: i64) {
     let pointer_path = env
         .pointer_paths
         .get_mut(pointer_path_id)
-        .ok_or_else(|| EnvironmentError::InvalidPointerPathId)
+        .ok_or(EnvironmentError::InvalidPointerPathId)
         .unwrap();
     pointer_path.offsets.push(offset);
 }
@@ -505,7 +489,7 @@ fn get_val<T>(
     let pointer_path = env
         .pointer_paths
         .get(pointer_path_id)
-        .ok_or_else(|| EnvironmentError::InvalidPointerPathId)
+        .ok_or(EnvironmentError::InvalidPointerPathId)
         .unwrap();
     let value = if current {
         &pointer_path.current
