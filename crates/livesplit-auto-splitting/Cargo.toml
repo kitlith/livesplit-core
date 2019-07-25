@@ -6,12 +6,11 @@ edition = "2018"
 
 [dependencies]
 # wasmi = "0.3.0"
-wasmer-runtime = { path = "../../../wasmer/lib/runtime" }
-wasmer-runtime-core = { path = "../../../wasmer/lib/runtime-core" }
+# wasmer-runtime = { path = "../../../wasmer/lib/runtime" }
+# wasmer-runtime-core = { path = "../../../wasmer/lib/runtime-core" }
 # wasmer-runtime = { git = "https://github.com/wasmerio/wasmer" }
-# wasmer-runtime-core = { git = "https://github.com/wasmerio/wasmer" }
-# wasmer-runtime = "0.4.2"
-# wasmer-runtime-core = "0.4.2"
+wasmer-runtime = "0.5.7"
+wasmer-runtime-core = "0.5.7"
 # wasmer-runtime = { git = "https://github.com/CryZe/wasmer", branch = "windows-calling-conventions" }
 num-traits = "0.2.5"
 num-derive = "0.2.2"
