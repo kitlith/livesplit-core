@@ -8,8 +8,8 @@ edition = "2018"
 # wasmi = "0.3.0"
 # wasmer-runtime = { path = "../../../wasmer/lib/runtime" }
 # wasmer-runtime = { git = "https://github.com/wasmerio/wasmer" }
-wasmer-runtime = "0.3.0"
-wasmer-runtime-core = "0.3.0"
+wasmer-runtime = "0.5.7"
+wasmer-runtime-core = "0.5.7"
 # wasmer-runtime = { git = "https://github.com/CryZe/wasmer", branch = "windows-calling-conventions" }
 num-traits = "0.2.5"
 num-derive = "0.2.2"

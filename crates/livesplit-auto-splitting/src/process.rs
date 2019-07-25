@@ -19,7 +19,7 @@ quick_error! {
         ListModules {}
         OpenProcess {}
         ModuleDoesntExist {}
-        ReadMemory {}
+        ReadMemory(err: std::io::Error) {}
     }
 }
 
@@ -47,7 +47,7 @@ impl Process {
 
         let mut best_process = None::<(Pid, u64)>;
         for (pid, proc) in system.get_process_list() {
-            if proc.name() == name {
+            if proc.name().contains(name) { // TODO: detect paths?
                 if best_process.map_or(true, |(_, current)| proc.start_time() > current) {
                     best_process = Some((proc.pid(), proc.start_time()));
                 }
@@ -84,7 +84,7 @@ impl Process {
     pub fn read_buf(&self, address: Address, buf: &mut [u8]) -> Result<()> {
         self.handle
             .copy_address(address, buf)
-            .or(Err(Error::ReadMemory))
+            .map_err(|e| Error::ReadMemory(e))
     }
 
     pub fn read<T: Copy>(&self, address: Address) -> Result<T> {
@@ -100,7 +100,11 @@ impl Process {
         Ok(get_process_maps(self.pid)
             .or(Err(Error::ProcessDoesntExist))?
             .into_iter()
-            .filter(move |range| all || range.is_read()))
+            .filter(move |range| (all || range.is_read()) && !(range.filename().is_some() && (
+                range.filename().as_ref().unwrap().starts_with("/dev") ||
+                range.filename().as_ref().unwrap() == "[vvar]" ||
+                range.filename().as_ref().unwrap() == "[vdso]"
+            ))))
     }
 
     pub fn scan_signature(&self, signature: &str) -> Result<Option<Address>> {
