@@ -1,7 +1,7 @@
 // use crate::environment::{Environment, Imports};
 use crate::pointer::PointerValue;
 use crate::process::{Offset, Process};
-use std::{error::Error, mem, str, thread, time::Duration};
+use std::{collections::HashMap, error::Error, mem, str, thread, time::Duration};
 // use wasmi::{
 //     ExternVal, FuncInstance, FuncRef, MemoryRef, Module, ModuleInstance, ModuleRef, RuntimeValue,
 // };
@@ -55,6 +55,7 @@ pub struct Environment {
     pub tick_rate: Duration,
     pub process: Option<Process>,
     pub fs: wasi::FileSystem,
+    pub variable_changes: HashMap<String, String>,
 }
 
 #[derive(Debug)]
@@ -74,6 +75,7 @@ impl Environment {
             tick_rate: Duration::from_secs(1) / 60,
             process: None,
             fs: wasi::FileSystem::new(),
+            variable_changes: HashMap::new(),
         }
     }
 }
@@ -99,6 +101,7 @@ impl Runtime {
                 "set_tick_rate" => func!(set_tick_rate),
                 "print_message" => func!(print_message),
                 "read_into_buf" => func!(read_into_buf),
+                "set_variable" => func!(set_variable),
             },
             "wasi_unstable" => {
                 "args_get" => func!(wasi::args_get),
@@ -328,6 +331,10 @@ impl Runtime {
     pub fn game_time(&self) -> Option<f64> {
         self.game_time_val
     }
+
+    pub fn drain_variable_changes(&mut self) -> impl Iterator<Item = (String, String)> + '_ {
+        self.environment.variable_changes.drain()
+    }
 }
 
 fn read_bytes(memory: &MemoryView<u8>, ptr: usize, len: usize) -> Vec<u8> {
@@ -345,6 +352,18 @@ fn print_message(ctx: &mut Ctx, ptr: u32, len: u32) {
     let memory = ctx.memory(0).view();
     let message = read_string(&memory, ptr, len);
     log::info!(target: "Auto Splitter", "{}", message);
+}
+
+fn set_variable(ctx: &mut Ctx, key_ptr: u32, key_len: u32, value_ptr: u32, value_len: u32) {
+    let key_ptr = key_ptr as usize;
+    let key_len = key_len as usize;
+    let value_ptr = value_ptr as usize;
+    let value_len = value_len as usize;
+    let memory = ctx.memory(0).view();
+    let key = read_string(&memory, key_ptr, key_len);
+    let value = read_string(&memory, value_ptr, value_len);
+    let env = unsafe { &mut *(ctx.data as *mut Environment) };
+    env.variable_changes.insert(key, value);
 }
 
 fn set_process_name(ctx: &mut Ctx, ptr: u32, len: u32) {
@@ -515,11 +534,12 @@ fn read_into_buf(ctx: &mut Ctx, address: u64, buf: u32, buf_len: u32) {
     let env = unsafe { &mut *(ctx.data as *mut Environment) };
     let memory = ctx.memory(0).view();
 
-    // TODO: Don't panic
     let buf = &memory[buf..buf + buf_len];
     if let Some(process) = &env.process {
         let mut byte_buf = vec![0; buf.len()];
-        process.read_buf(address, &mut byte_buf).unwrap();
+        if process.read_buf(address, &mut byte_buf).is_err() {
+            // TODO: Handle error
+        }
         for (dst, src) in buf.iter().zip(byte_buf) {
             dst.set(src);
         }

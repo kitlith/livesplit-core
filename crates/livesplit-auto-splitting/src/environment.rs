@@ -25,6 +25,7 @@ const SCAN_SIGNATURE_FUNC_INDEX: usize = 13;
 const SET_TICK_RATE_FUNC_INDEX: usize = 14;
 const PRINT_MESSAGE_FUNC_INDEX: usize = 15;
 const READ_INTO_BUF_FUNC_INDEX: usize = 16;
+const SET_VARIABLE_FUNC_INDEX: usize = 17;
 
 #[derive(Debug)]
 enum EnvironmentError {
@@ -263,6 +264,27 @@ impl Externals for Environment {
                 // TODO: Possibly return error code?
                 Ok(None)
             }
+            // SET_VARIABLE_FUNC_INDEX => {
+            //     let key_ptr: u32 = args.nth_checked(0)?;
+            //     let key_ptr = key_ptr as usize;
+            //     let key_len: u32 = args.nth_checked(1)?;
+            //     let key_len = key_len as usize;
+            //     let value_ptr: u32 = args.nth_checked(2)?;
+            //     let value_ptr = value_ptr as usize;
+            //     let value_len: u32 = args.nth_checked(3)?;
+            //     let value_len = value_len as usize;
+            //     self.memory
+            //         .with_direct_access(|m| {
+            //             let key = str::from_utf8(m.get(key_ptr..key_ptr + key_len)?).ok()?;
+            //             let value =
+            //                 str::from_utf8(m.get(value_ptr..value_ptr + value_len)?).ok()?;
+            //             log::info!(target: "Auto Splitter", "{}", message);
+            //             Some(())
+            //         })
+            //         .ok_or_else(|| EnvironmentError::Utf8DecodeError)?;
+
+            //     Ok(None)
+            // }
             _ => panic!("Unimplemented function at {}", index),
         }
     }
@@ -348,6 +370,18 @@ impl ImportResolver for Imports {
             "read_into_buf" => FuncInstance::alloc_host(
                 Signature::new(&[ValueType::I64, ValueType::I32, ValueType::I32][..], None),
                 READ_INTO_BUF_FUNC_INDEX,
+            ),
+            "set_variable" => FuncInstance::alloc_host(
+                Signature::new(
+                    &[
+                        ValueType::I32,
+                        ValueType::I32,
+                        ValueType::I32,
+                        ValueType::I32,
+                    ][..],
+                    None,
+                ),
+                SET_VARIABLE_FUNC_INDEX,
             ),
             _ => {
                 return Err(Error::Instantiation(format!(
