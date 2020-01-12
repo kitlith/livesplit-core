@@ -61,6 +61,9 @@ impl Runtime {
                             continue 'back_to_not_having_a_runtime;
                         }
                     };
+                    for (key, value) in runtime.drain_variable_changes() {
+                        timer.write().set_custom_variable(key, value);
+                    }
                     if let Some(is_loading) = runtime.is_loading() {
                         if is_loading {
                             timer.write().pause_game_time();
