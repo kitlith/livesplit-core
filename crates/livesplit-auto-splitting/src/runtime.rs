@@ -1,7 +1,7 @@
 // use crate::environment::{Environment, Imports};
 use crate::pointer::PointerValue;
 use crate::process::{Offset, Process};
-use std::{collections::HashMap, error::Error, mem, str, thread, time::Duration};
+use std::{collections::HashMap, convert::TryInto, error::Error, mem, str, thread, time::Duration};
 // use wasmi::{
 //     ExternVal, FuncInstance, FuncRef, MemoryRef, Module, ModuleInstance, ModuleRef, RuntimeValue,
 // };
@@ -503,7 +503,7 @@ fn read_into_buf(ctx: &mut Ctx, address: u64, buf: u32, buf_len: u32) {
     let buf = &memory[buf..buf + buf_len];
     if let Some(process) = &env.process {
         let mut byte_buf = vec![0; buf.len()];
-        if process.read_buf(address, &mut byte_buf).is_err() {
+        if process.read_buf(address.try_into().unwrap(), &mut byte_buf).is_err() {
             // TODO: Handle error
         }
         for (dst, src) in buf.iter().zip(byte_buf) {
