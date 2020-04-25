@@ -1,4 +1,3 @@
-use quick_error::quick_error;
 use winapi::shared::minwindef::{BOOL, DWORD};
 use winapi::um::{
     handleapi::{CloseHandle, INVALID_HANDLE_VALUE},
@@ -19,21 +18,20 @@ use std::collections::HashMap;
 use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
-use std::{mem, ptr, result, slice};
+use std::{iter, mem, ptr, result, slice};
 
 type Address = u64;
 pub type Offset = i64;
 
-quick_error! {
-    #[derive(Debug)]
-    pub enum Error {
-        ListProcesses {}
-        ProcessDoesntExist {}
-        ListModules {}
-        OpenProcess {}
-        ModuleDoesntExist {}
-        ReadMemory {}
-    }
+#[derive(Debug, snafu::Snafu)]
+pub enum Error {
+    // TODO: Doc Comments
+    ListProcesses,
+    ProcessDoesntExist,
+    ListModules,
+    ProcessOpening,
+    ModuleDoesntExist,
+    ReadMemory,
 }
 
 pub type Result<T> = result::Result<T, Error>;
@@ -197,7 +195,7 @@ impl Process {
                     is_64bit,
                 })
             } else {
-                Err(Error::OpenProcess)
+                Err(Error::ProcessOpening)
             }
         }
     }
@@ -250,7 +248,7 @@ impl Process {
 
         let mbi_size = mem::size_of::<MEMORY_BASIC_INFORMATION>();
         let mut addr = min;
-        itertools::unfold((), move |_| {
+        iter::from_fn(move || {
             while addr < max {
                 unsafe {
                     let mut mbi: MEMORY_BASIC_INFORMATION = mem::uninitialized();

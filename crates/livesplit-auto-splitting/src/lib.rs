@@ -1,6 +1,6 @@
-// mod environment;
+mod environment;
 mod pointer;
 mod process;
 mod runtime;
 
-pub use self::runtime::{Runtime, TimerAction, TimerState};
+pub use runtime::{Runtime, TimerAction, TimerState};
