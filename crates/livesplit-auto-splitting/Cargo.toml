@@ -11,4 +11,7 @@ num-traits = "0.2.11"
 num-derive = "0.3.0"
 snafu = "0.6.6"
 wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", default-features = false }
+libc = "0.2.54"
+
+[target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.5", features = ["handleapi", "memoryapi", "processthreadsapi", "psapi", "tlhelp32", "winnt", "wow64apiset"] }
